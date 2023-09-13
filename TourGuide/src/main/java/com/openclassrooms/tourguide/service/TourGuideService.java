@@ -1,5 +1,6 @@
 package com.openclassrooms.tourguide.service;
 
+import com.openclassrooms.tourguide.dto.NearByAttractionDto;
 import com.openclassrooms.tourguide.helper.InternalTestHelper;
 import com.openclassrooms.tourguide.tracker.Tracker;
 import com.openclassrooms.tourguide.user.User;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -42,7 +44,7 @@ public class TourGuideService {
 	public TourGuideService(GpsUtil gpsUtil, RewardsService rewardsService) {
 		this.gpsUtil = gpsUtil;
 		this.rewardsService = rewardsService;
-		
+
 		Locale.setDefault(Locale.US);
 
 		if (testMode) {
@@ -95,15 +97,44 @@ public class TourGuideService {
 		return visitedLocation;
 	}
 
-	public List<Attraction> getNearByAttractions(VisitedLocation visitedLocation) {
-		List<Attraction> nearbyAttractions = new ArrayList<>();
-		for (Attraction attraction : gpsUtil.getAttractions()) {
-			if (rewardsService.isWithinAttractionProximity(attraction, visitedLocation.location)) {
-				nearbyAttractions.add(attraction);
-			}
+	public List<NearByAttractionDto> getNearByAttractions(User user, VisitedLocation visitedLocation) {
+
+		int numberMaxOfAttractions = 5;
+
+		VisitedLocation userLocation = visitedLocation;
+		double userLatitude = userLocation.location.latitude;
+		double userLongitude = userLocation.location.longitude;
+
+		List<Attraction> attractions = gpsUtil.getAttractions();
+
+		Map<Double, Attraction> sortedAttractions = new TreeMap<>();
+
+		for (Attraction a : attractions) {
+			Double distanceBetweenUserAndAttraction = rewardsService.getDistanceBetweenUserAndAttraction(userLocation,
+					a);
+			sortedAttractions.put(distanceBetweenUserAndAttraction, a);
 		}
 
-		return nearbyAttractions;
+		List<NearByAttractionDto> nearByAttractions = new ArrayList<>();
+
+		for (Double distance : sortedAttractions.keySet()) {
+
+			if (numberMaxOfAttractions > 0) {
+
+				NearByAttractionDto dto = new NearByAttractionDto();
+				dto.setAttractionName(sortedAttractions.get(distance).attractionName);
+				dto.setAttractionLatitude(sortedAttractions.get(distance).latitude);
+				dto.setAttractionLongitude(sortedAttractions.get(distance).longitude);
+				dto.setUserLatitude(userLatitude);
+				dto.setUserLongitude(userLongitude);
+				dto.setDistanceBetweenUserAndAttraction(distance);
+				dto.setRewardPoints(rewardsService.getRewardPoints(sortedAttractions.get(distance), user));
+				nearByAttractions.add(dto);
+
+				numberMaxOfAttractions--;
+			}
+		}
+		return nearByAttractions;
 	}
 
 	private void addShutDownHook() {
