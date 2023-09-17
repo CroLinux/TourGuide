@@ -19,10 +19,16 @@ import com.openclassrooms.tourguide.service.TourGuideService;
 import com.openclassrooms.tourguide.user.User;
 import com.openclassrooms.tourguide.user.UserReward;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
 public class TestRewardsService {
 
+	// Due to the modification of the method tourGuideService.trackUserLocation with
+	// CompletableFuture, for the performances, we need to update this test too, otherwise the test will
+	// failed.
 	@Test
-	public void userGetRewards() {
+	public void userGetRewards() throws InterruptedException, ExecutionException {
 		GpsUtil gpsUtil = new GpsUtil();
 		RewardsService rewardsService = new RewardsService(gpsUtil, new RewardCentral());
 
@@ -32,10 +38,15 @@ public class TestRewardsService {
 		User user = new User(UUID.randomUUID(), "jon", "000", "jon@tourGuide.com");
 		Attraction attraction = gpsUtil.getAttractions().get(0);
 		user.addToVisitedLocations(new VisitedLocation(user.getUserId(), attraction, new Date()));
-		tourGuideService.trackUserLocation(user);
-		List<UserReward> userRewards = user.getUserRewards();
-		tourGuideService.tracker.stopTracking();
-		assertTrue(userRewards.size() == 1);
+
+		CompletableFuture<VisitedLocation> futureLocation = tourGuideService.trackUserLocation(user);
+
+		futureLocation.thenAccept(visitedLocation -> {
+			List<UserReward> userRewards = user.getUserRewards();
+			tourGuideService.tracker.stopTracking();
+			System.out.println(userRewards.size());
+			assertEquals(1, userRewards.size());
+		}).get(); // We wait for the CompletableFuture to finish
 	}
 
 	@Test

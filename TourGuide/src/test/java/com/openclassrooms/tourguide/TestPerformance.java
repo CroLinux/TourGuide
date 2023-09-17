@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.time.StopWatch;
@@ -45,31 +47,39 @@ public class TestPerformance {
 	 * TimeUnit.MILLISECONDS.toSeconds(stopWatch.getTime()));
 	 */
 
-	@Disabled
+	
 	@Test
-	public void highVolumeTrackLocation() {
-		GpsUtil gpsUtil = new GpsUtil();
-		RewardsService rewardsService = new RewardsService(gpsUtil, new RewardCentral());
-		// Users should be incremented up to 100,000, and test finishes within 15
-		// minutes
-		InternalTestHelper.setInternalUserNumber(100);
-		TourGuideService tourGuideService = new TourGuideService(gpsUtil, rewardsService);
+    public void highVolumeTrackLocation() throws InterruptedException, ExecutionException {
+        GpsUtil gpsUtil = new GpsUtil();
+        RewardsService rewardsService = new RewardsService(gpsUtil, new RewardCentral());
+        // Users should be incremented up to 100,000, and test finishes within 15 minutes
+        InternalTestHelper.setInternalUserNumber(100);
+        TourGuideService tourGuideService = new TourGuideService(gpsUtil, rewardsService);
 
-		List<User> allUsers = new ArrayList<>();
+        List<User> allUsers = new ArrayList<>();
 		allUsers = tourGuideService.getAllUsers();
 
-		StopWatch stopWatch = new StopWatch();
-		stopWatch.start();
-		for (User user : allUsers) {
-			tourGuideService.trackUserLocation(user);
-		}
-		stopWatch.stop();
-		tourGuideService.tracker.stopTracking();
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
 
-		System.out.println("highVolumeTrackLocation: Time Elapsed: "
-				+ TimeUnit.MILLISECONDS.toSeconds(stopWatch.getTime()) + " seconds.");
-		assertTrue(TimeUnit.MINUTES.toSeconds(15) >= TimeUnit.MILLISECONDS.toSeconds(stopWatch.getTime()));
-	}
+        // Use CompletableFuture to call trackUserLocation asynchronously
+        List<CompletableFuture<VisitedLocation>> futuresVisitedLocation = new ArrayList<>();
+        for (User user : allUsers) {
+            CompletableFuture<VisitedLocation> futureLocation = tourGuideService.trackUserLocation(user);
+            futuresVisitedLocation.add(futureLocation);
+        }
+
+        // Wait for all CompletableFuture tasks to complete
+        CompletableFuture<Void> allOfLocations = CompletableFuture.allOf(futuresVisitedLocation.toArray(new CompletableFuture[0]));
+        allOfLocations.join();
+
+        stopWatch.stop();
+        tourGuideService.tracker.stopTracking();
+
+        System.out.println("highVolumeTrackLocation: Time Elapsed: "
+                + TimeUnit.MILLISECONDS.toSeconds(stopWatch.getTime()) + " seconds.");
+        assertTrue(TimeUnit.MINUTES.toSeconds(15) >= TimeUnit.MILLISECONDS.toSeconds(stopWatch.getTime()));
+    }
 
 	@Disabled
 	@Test
