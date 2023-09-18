@@ -2,7 +2,9 @@ package com.openclassrooms.tourguide.service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.springframework.stereotype.Service;
 
@@ -25,6 +27,8 @@ public class RewardsService {
 	private final GpsUtil gpsUtil;
 	private final RewardCentral rewardsCentral;
 
+	public ExecutorService executor = Executors.newFixedThreadPool(200);
+
 	public RewardsService(GpsUtil gpsUtil, RewardCentral rewardCentral) {
 		this.gpsUtil = gpsUtil;
 		this.rewardsCentral = rewardCentral;
@@ -38,24 +42,29 @@ public class RewardsService {
 		proximityBuffer = defaultProximityBuffer;
 	}
 
+	// Modification of the method for a better Performance
 	public void calculateRewards(User user) {
-		List<VisitedLocation> userLocations = new ArrayList<>(user.getVisitedLocations());
-		List<Attraction> attractions = gpsUtil.getAttractions();
+		CompletableFuture.runAsync(() -> {
+			List<VisitedLocation> userLocations = new ArrayList<>(user.getVisitedLocations());
+			List<Attraction> attractions = gpsUtil.getAttractions();
 
-		CopyOnWriteArrayList<UserReward> newUserRewards = new CopyOnWriteArrayList<>();
+			List<UserReward> newUserRewards = new ArrayList<>(); // Temporary list created
 
-		for (VisitedLocation visitedLocation : userLocations) {
-			for (Attraction attraction : attractions) {
-				if (user.getUserRewards().stream()
-						.filter(r -> r.attraction.attractionName.equals(attraction.attractionName)).count() == 0) {
-					if (nearAttraction(visitedLocation, attraction)) {
-						newUserRewards
-								.add(new UserReward(visitedLocation, attraction, getRewardPoints(attraction, user)));
-					}
-				}
-			}
+			// Iterate over each visited location
+			userLocations.parallelStream().forEach(visitedLocation -> {
+				// Filter attractions to find the ones near the visited location
+				attractions.parallelStream().filter(attraction -> nearAttraction(visitedLocation, attraction))
+						.forEach(attraction -> {
+							// Add a new UserReward to the temporary list
+							newUserRewards.add(
+									new UserReward(visitedLocation, attraction, getRewardPoints(attraction, user)));
+						});
+			});
+
+			// Add new Rewards
 			user.setUserRewards(newUserRewards);
-		}
+
+		}, executor);
 	}
 
 	public boolean isWithinAttractionProximity(Attraction attraction, Location location) {
