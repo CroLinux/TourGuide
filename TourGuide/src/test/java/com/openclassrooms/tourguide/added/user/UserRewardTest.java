@@ -33,9 +33,8 @@ public class UserRewardTest {
 		user = new User(userId, userName, phoneNumber, emailAddress);
 		
     	VisitedLocation visitedLocation = new VisitedLocation(user.getUserId(), new Location(10.1234, -21.1234), new Date());
-        //VisitedLocation visitedLocation = new VisitedLocation(null, new Location(0.0, 0.0), null);
     	Attraction attraction = new Attraction("name1", "city1", "state1", 0.50, 0.60);
-        //Attraction attraction = new Attraction("Test Attraction", "Test City", "Test State", 0.0, 0.0);
+    	
         userReward = new UserReward(visitedLocation, attraction, 10);
         userReward2 = new UserReward(visitedLocation, attraction);
     }
