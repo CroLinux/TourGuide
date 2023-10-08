@@ -62,7 +62,8 @@ public class RewardsService {
 			});
 
 			// Add new Rewards
-			user.setUserRewards(newUserRewards);
+			//user.setUserRewards(newUserRewards); // Not recommended
+			user.getUserRewards().addAll(newUserRewards);
 
 		}, executor);
 	}
